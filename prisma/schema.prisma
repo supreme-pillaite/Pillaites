@@ -145,12 +145,3 @@ enum NotificationType {
   FOLLOW
   COMMENT
 }
-
-// New Invite model for managing invited emails
-model Invite {
-  id    String @id @default(cuid())
-  email String @unique
-  invitedAt DateTime @default(now())  // When the invite was created
-
-  @@map("invites")
-}
