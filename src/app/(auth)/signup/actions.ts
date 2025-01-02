@@ -1,5 +1,4 @@
 "use server";
-
 import { lucia } from "@/auth";
 import prisma from "@/lib/prisma";
 import streamServerClient from "@/lib/stream";
@@ -15,22 +14,6 @@ export async function signUp(
 ): Promise<{ error: string }> {
   try {
     const { username, email, password } = signUpSchema.parse(credentials);
-
-    // Check if the email exists in the invite table
-    const invitedEmail = await prisma.invite.findFirst({
-      where: {
-        email: {
-          equals: email,
-          mode: "insensitive",
-        },
-      },
-    });
-
-    if (!invitedEmail) {
-      return {
-        error: "You are not invited! You are not a Pillaite!",
-      };
-    }
 
     const passwordHash = await hash(password, {
       memoryCost: 19456,
@@ -80,13 +63,6 @@ export async function signUp(
           displayName: username,
           email,
           passwordHash,
-        },
-      });
-
-      // Remove email from invite table after successful creation
-      await tx.invite.delete({
-        where: {
-          email: email,
         },
       });
 
