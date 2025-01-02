@@ -1,5 +1,3 @@
-"use server";
-
 import { lucia } from "@/auth";
 import prisma from "@/lib/prisma";
 import streamServerClient from "@/lib/stream";
@@ -14,33 +12,10 @@ export async function signUp(
   credentials: SignUpValues,
 ): Promise<{ error: string }> {
   try {
+    // Validate user input
     const { username, email, password } = signUpSchema.parse(credentials);
 
-    // Check if the email exists in the invite table
-    const invitedEmail = await prisma.invite.findFirst({
-      where: {
-        email: {
-          equals: email,
-          mode: "insensitive",
-        },
-      },
-    });
-
-    if (!invitedEmail) {
-      return {
-        error: "You are not invited! You are not a Pillaite!",
-      };
-    }
-
-    const passwordHash = await hash(password, {
-      memoryCost: 19456,
-      timeCost: 2,
-      outputLen: 32,
-      parallelism: 1,
-    });
-
-    const userId = generateIdFromEntropySize(10);
-
+    // Check if username is already taken
     const existingUsername = await prisma.user.findFirst({
       where: {
         username: {
@@ -51,11 +26,10 @@ export async function signUp(
     });
 
     if (existingUsername) {
-      return {
-        error: "Username already taken",
-      };
+      return { error: "Username already taken" };
     }
 
+    // Check if email is already registered
     const existingEmail = await prisma.user.findFirst({
       where: {
         email: {
@@ -66,13 +40,22 @@ export async function signUp(
     });
 
     if (existingEmail) {
-      return {
-        error: "Email already taken",
-      };
+      return { error: "Email already taken" };
     }
 
+    // Hash the password
+    const passwordHash = await hash(password, {
+      memoryCost: 19456,
+      timeCost: 2,
+      outputLen: 32,
+      parallelism: 1,
+    });
+
+    // Generate a unique user ID
+    const userId = generateIdFromEntropySize(10);
+
+    // Create the user and add them to Stream Server
     await prisma.$transaction(async (tx) => {
-      // Create the user
       await tx.user.create({
         data: {
           id: userId,
@@ -83,13 +66,6 @@ export async function signUp(
         },
       });
 
-      // Remove email from invite table after successful creation
-      await tx.invite.delete({
-        where: {
-          email: email,
-        },
-      });
-
       await streamServerClient.upsertUser({
         id: userId,
         username,
@@ -97,20 +73,24 @@ export async function signUp(
       });
     });
 
+    // Create a new session for the user
     const session = await lucia.createSession(userId, {});
     const sessionCookie = lucia.createSessionCookie(session.id);
+
+    // Set the session cookie
     cookies().set(
       sessionCookie.name,
       sessionCookie.value,
       sessionCookie.attributes,
     );
 
+    // Redirect to the homepage
     return redirect("/");
   } catch (error) {
+    // Handle errors
     if (isRedirectError(error)) throw error;
-    console.error(error);
-    return {
-      error: "Something went wrong. Please try again.",
-    };
+
+    console.error("Sign-up error:", error);
+    return { error: "Something went wrong. Please try again." };
   }
 }
