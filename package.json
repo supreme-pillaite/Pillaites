@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma migrate deploy && prisma generate"
+    "postinstall": "prisma migrate deploy && prisma generate --accept-data-loss"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
